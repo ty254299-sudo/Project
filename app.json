@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Study Sprout",
+    "slug": "study-sprout",
+    "scheme": "studysprout",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router"],
+    "experiments": { "typedRoutes": true },
+    "web": { "bundler": "metro", "output": "static" }
+  }
+}

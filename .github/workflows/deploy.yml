@@ -1,0 +1,86 @@
+name: Deploy Study Sprout
+
+on:
+  workflow_dispatch:
+    inputs:
+      destination:
+        description: Deploy candidate preview or production live channel
+        type: choice
+        options:
+          - preview
+          - live
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.destination }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: https://cypress-study-sprout.supabase.co
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: cypress-public-test-key
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npm audit --audit-level=high
+      - name: Build static Expo web routes
+        run: npm run build:web
+      - name: Install Cypress browser binary
+        run: npx cypress install
+      - name: Start Expo web app
+        run: |
+          npm run web -- --port 8081 > /tmp/study-sprout-expo.log 2>&1 &
+          for attempt in $(seq 1 90); do
+            if curl --fail --silent http://127.0.0.1:8081/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/study-sprout-expo.log
+          exit 1
+      - name: Run browser journey and recovery checks
+        run: npm run test:e2e
+
+  deploy:
+    needs: verify
+    if: ${{ inputs.destination == 'preview' || inputs.destination == 'live' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: ${{ inputs.destination == 'live' && 'production' || 'preview' }}
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      - uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check deployment configuration
+        env:
+          FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_SUPABASE_URL: ${{ vars.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          : "${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID in this GitHub Environment}"
+          : "${EXPO_PUBLIC_SUPABASE_URL:?Set EXPO_PUBLIC_SUPABASE_URL in this GitHub Environment}"
+          : "${EXPO_PUBLIC_SUPABASE_ANON_KEY:?Set EXPO_PUBLIC_SUPABASE_ANON_KEY in this GitHub Environment}"
+      - run: npm run build:web
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@500ac625ca2dd40cbd15f7659af953801858032a
+        with:
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ vars.FIREBASE_PROJECT_ID }}
+          channelId: ${{ inputs.destination == 'live' && 'live' || 'candidate' }}
+          expires: 7d

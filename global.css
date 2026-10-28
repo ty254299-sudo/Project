@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light dark;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  min-width: 320px;
+  max-width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+*:focus-visible {
+  outline: 3px solid #1261a0;
+  outline-offset: 3px;
+}
+
+@media (prefers-color-scheme: dark) {
+  *:focus-visible { outline-color: #8dcaff; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

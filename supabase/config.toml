@@ -1,0 +1,8 @@
+[auth]
+# Local Auth redirect configuration for the Expo web app and static preview.
+site_url = "http://localhost:8081"
+additional_redirect_urls = ["http://localhost:8081/**", "http://localhost:8082/**", "http://localhost:4174/**", "studysprout://**"]
+
+[functions.api]
+# The function verifies Supabase Auth itself so even auth failures receive the API's structured error envelope.
+verify_jwt = false
